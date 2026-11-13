@@ -205,6 +205,12 @@
   };
   for(const canvas of [makeSurface,playSurface]){
     canvas.addEventListener('pointerdown',hideDemo);
+    // Screen-reader activation can arrive as a click without any pointer events.
+    canvas.addEventListener('click',event=>{
+      if(event.detail!==0||!ready||finished)return;
+      sound.unlock();hideDemo();
+      if(stage==='play')play.tap();else make.tap();
+    });
     canvas.addEventListener('keydown',event=>{
       if(event.key==='Enter'||event.key===' '){
         event.preventDefault();
