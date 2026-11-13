@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#faf7ee">
+<meta name="description" content="Make your own colorful squishy friend, then poke, stretch and slice it in a miniature toy workshop.">
+<title>Squishy Factory</title>
+<link rel="icon" href="assets/icon.png" type="image/png">
+<link rel="preload" href="assets/nunito-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/workbench.webp" as="image">
+<link rel="stylesheet" href="style.css">
+<script defer src="toy.js"></script>
+<script defer src="sound.js"></script>
+<script defer src="illustrations.js"></script>
+<script defer src="game.js"></script>
+</head>
+<body>
+<header class="topbar"><div class="bar-inner">
+  <h1 class="brand"><span id="brand-art" aria-hidden="true"></span><span>Squishy Factory</span></h1>
+  <div class="utilities"><button class="small-button" id="shelf-open"></button><button class="small-button sound" id="sound"></button></div>
+</div></header>
+<main>
+ <div class="title-row"><h2 id="main-title">Make a squishy</h2><div class="mode-switch" role="group" aria-label="Play modes"><button id="make-tab"></button><button id="play-tab"></button></div></div>
+ <div class="workshop">
+  <section class="stage-frame" aria-label="Squishy workbench">
+   <div class="stage" id="stage">
+    <div class="nameplate"><span class="name-dot"></span><span id="toy-name">Strawberry Bear</span></div>
+    <span class="corner-bolt" aria-hidden="true"></span>
+    <canvas id="toy" tabindex="0" role="button" aria-label="Press the bear mold"></canvas>
+    <div class="touch-demo" aria-hidden="true"></div>
+    <button class="stage-action" id="stage-action"></button>
+   </div>
+  </section>
+  <section class="console" aria-labelledby="console-title">
+   <div class="candy-edge" aria-hidden="true"></div>
+   <div class="console-inside">
+    <div class="step-line"><span id="step-count"></span><span class="pips" id="pips" aria-hidden="true"></span></div>
+    <h3 id="console-title">Pick a shape</h3>
+    <div class="choices" id="choices" role="group" aria-label="Choices"></div>
+    <div class="navigation" id="navigation"></div>
+   </div>
+  </section>
+ </div>
+ <section class="recipe" aria-label="Your recipe">
+  <div class="recipe-title" id="recipe-title"></div><div class="ingredients" id="ingredients"></div>
+ </section>
+ <div class="floor-decoration" aria-hidden="true"><i></i><span>✦</span><i></i></div>
+</main>
+<dialog id="shelf" aria-labelledby="shelf-title"><div class="shelf-inside">
+ <div class="dialog-head"><h2 id="shelf-title">My shelf</h2><button class="icon-button" id="shelf-close" aria-label="Close shelf"></button></div>
+ <div id="shelf-content"></div>
+ <button class="primary-button" id="new-toy"></button>
+</div></dialog>
+<p id="announcement" class="sr-only" role="status" aria-live="polite"></p>
+<noscript>Turn on JavaScript in your browser to play Squishy Factory.</noscript>
+</body></html>
