@@ -112,13 +112,49 @@
       gl.linkProgram(deposit);
       if(!gl.getProgramParameter(deposit,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(deposit));
       const depAttr=gl.getAttribLocation(deposit,'a'),depTime=gl.getUniformLocation(deposit,'age'),depForce=gl.getUniformLocation(deposit,'force'),depHit=gl.getUniformLocation(deposit,'landing');
+      const ribbon=gl.createProgram();
+      gl.attachShader(ribbon,shader(gl.VERTEX_SHADER,`
+        attribute vec2 pos;uniform vec2 lip,hit;uniform float thick,age;varying vec2 local;
+        void main(){
+          float u=pos.x,t=1.-u,mid=mix(lip.x,hit.x,.79);
+          float x=lip.x*t*t*t+3.*mid*t*t*u+3.*hit.x*t*u*u+hit.x*u*u*u;
+          float y=lip.y*t*t*t+3.*(lip.y+24.)*t*t*u+3.*(lip.y+hit.y)*.5*t*u*u+hit.y*u*u*u;
+          float w=thick*(1.02-.24*sin(u*3.14159))*(.96+.045*sin(u*13.-age*9.));
+          vec2 point=vec2((x+(pos.y-.5)*w)/960.,y/640.);
+          gl_Position=vec4(point.x*2.-1.,1.-point.y*2.,0.,1.);local=vec2(pos.y,u);
+        }
+      `));
+      gl.attachShader(ribbon,shader(gl.FRAGMENT_SHADER,`
+        precision highp float;varying vec2 local;uniform float age;uniform sampler2D photo;
+        void main(){
+          float s=local.x,t=local.y;
+          vec3 col=texture2D(photo,vec2(.49+s*.20+.025*sin(t*6.-age*2.),.61+.10*t+.04*sin(t*9.-age*3.))).rgb;
+          float glint=exp(-pow((s-.28-.04*sin(t*8.-age*2.))/.13,2.));
+          float rim=pow(abs(s*2.-1.),3.);
+          col=mix(col,col*.84,rim);
+          col=mix(col,vec3(1.,.92,.88),.58*glint);
+          gl_FragColor=vec4(col,1.);
+        }
+      `));gl.linkProgram(ribbon);
+      if(!gl.getProgramParameter(ribbon,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(ribbon));
+      const rbPos=gl.getAttribLocation(ribbon,'pos'),rbLip=gl.getUniformLocation(ribbon,'lip'),rbHit=gl.getUniformLocation(ribbon,'hit'),rbT=gl.getUniformLocation(ribbon,'age'),rbThick=gl.getUniformLocation(ribbon,'thick');
+      const textures=new Map();
       let current=null;
       function prepare(pass,points,attribute,img,quality){
         if(gl.isContextLost())return false;
         const w=Math.round(Math.min(1350,Math.max(640,quality)));
         if(surface.width!==w){surface.width=w;surface.height=Math.round(w*2/3);gl.viewport(0,0,w,surface.height);}
         gl.useProgram(pass);gl.bindBuffer(gl.ARRAY_BUFFER,points);gl.enableVertexAttribArray(attribute);gl.vertexAttribPointer(attribute,2,gl.FLOAT,false,0,0);
-        if(img!==current){gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,img);current=img;}
+        if(img!==current){
+          let slot=textures.get(img);
+          if(!slot){
+            slot=textures.size?gl.createTexture():tex;gl.bindTexture(gl.TEXTURE_2D,slot);
+            for(const param of [gl.TEXTURE_MIN_FILTER,gl.TEXTURE_MAG_FILTER])gl.texParameteri(gl.TEXTURE_2D,param,gl.LINEAR);
+            for(const param of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T])gl.texParameteri(gl.TEXTURE_2D,param,gl.CLAMP_TO_EDGE);
+            gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,img);textures.set(img,slot);
+          }else gl.bindTexture(gl.TEXTURE_2D,slot);
+          current=img;
+        }
         return true;
       }
       return {
@@ -129,9 +165,16 @@
           gl.drawArrays(gl.TRIANGLE_STRIP,0,4);ctx.drawImage(surface,0,0,width,height);return true;
         },
         pool(ctx,img,x,y,w,h,hitX,hitY,age,force){
-          if(!prepare(deposit,buffer,depAttr,img,700))return false;
+          if(!prepare(deposit,buffer,depAttr,img,990))return false;
           gl.uniform1f(depTime,age);gl.uniform1f(depForce,force);gl.uniform2f(depHit,(hitX-x)/w,(hitY-y)/h);
           gl.drawArrays(gl.TRIANGLE_STRIP,0,4);ctx.drawImage(surface,x,y,w,h);return true;
+        },
+        ribbon(ctx,img,lip,hitX,hitY,thick,age,quality){
+          if(!prepare(ribbon,mesh,rbPos,img,quality))return false;
+          gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+          gl.uniform2f(rbLip,lip.x,lip.y);gl.uniform2f(rbHit,hitX,hitY);
+          gl.uniform1f(rbThick,thick);gl.uniform1f(rbT,age);
+          gl.drawArrays(gl.TRIANGLE_STRIP,0,vertices.length/2);ctx.drawImage(surface,0,0,width,height);return true;
         },
         peel(ctx,img,p,rolled,x,y,w,h,quality){
           if(!prepare(shell,mesh,shPos,img,quality))return false;
@@ -140,7 +183,8 @@
           gl.drawArrays(gl.TRIANGLE_STRIP,0,vertices.length/2);
           ctx.drawImage(surface,0,0,width,height);return true;
         },
-        destroy(){gl.deleteTexture(tex);gl.deleteBuffer(buffer);gl.deleteBuffer(mesh);gl.deleteProgram(program);gl.deleteProgram(shell);gl.deleteProgram(deposit);shaders.forEach(s=>gl.deleteShader(s));}
+        dropImages(){for(const t of textures.values())if(t!==tex)gl.deleteTexture(t);textures.clear();current=null;},
+        destroy(){this.dropImages();gl.deleteTexture(tex);gl.deleteBuffer(buffer);gl.deleteBuffer(mesh);gl.deleteProgram(program);gl.deleteProgram(shell);gl.deleteProgram(deposit);gl.deleteProgram(ribbon);shaders.forEach(s=>gl.deleteShader(s));}
       };
     } catch {return null;}
   }
@@ -202,7 +246,7 @@
       this.progress=0;this.complete=false;this.pointer=null;this.last=null;this.turn=0;this.turnTarget=0;this.direction=1;this.heat=0;this.force=0;
       this.age=0;this.lastTick=0;this.pose=0;this.target={x:bowl.x+75,y:bowl.y+28};this.spot={...this.target};this.dx=0;this.dy=0;this.travel=0;this.motionAt=-1;this.lastBed=0;this.frame=0;
     }
-    load(assets){this.assets=assets;this.resize();this.draw();return this;}
+    load(assets){this.vortex?.dropImages();this.assets=assets;this.resize();this.draw();return this;}
     state(){return {stage:this.stage,batch:this.batch,progress:this.progress,complete:this.complete,held:this.pointer!==null,active:this.active};}
     enter(stage,batch=0){
       if(!['stir','pour','peel'].includes(stage))return;
@@ -386,7 +430,8 @@
       const x=300+(this.spot.x-bowl.x)*.13,y=143-this.pose*7;
       const lipX=(.91-.48)*w,lipY=(.54-.47)*h;
       const lip={x:x+Math.cos(tilt)*lipX-Math.sin(tilt)*lipY,y:y+Math.sin(tilt)*lipX+Math.cos(tilt)*lipY};
-      if(this.pose>.035&&progress>0&&!this.complete){
+      const flowing=this.pose>.035&&progress>0&&!this.complete;
+      if(flowing&&!this.vortex?.ribbon(c,jug,lip,hitX,hitY,23*this.pose,this.age,990)){
         const jet=23*this.pose,midY=(lip.y+hitY)*.5,midX=lip.x+(hitX-lip.x)*.79;
         const surfaceY=u=>lip.y*(1-u)**3+3*(lip.y+24)*(1-u)**2*u+3*midY*(1-u)*u*u+hitY*u**3;
         const surfaceX=u=>lip.x*(1-u)**3+3*midX*(1-u)**2*u+3*hitX*(1-u)*u*u+hitX*u**3;
