@@ -192,4 +192,38 @@
     };
   }
   window.GelAudio = Object.freeze({unlock, play, motion, stop, setMuted, status});
+  // Temporary, opt-in hardware bench readout. No network calls or persistence.
+  if (location.hash === '#soundcheck') {
+    const hud = document.createElement('pre');
+    hud.style.cssText = 'position:fixed;z-index:10000;right:4px;top:4px;margin:0;padding:6px;background:#181125ed;color:#fff;font:15px/1.2 monospace;pointer-events:none;text-align:left;border-radius:4px';
+    (document.body || document.documentElement).append(hud);
+    let held = false, first = true, currentHold = 0, bestHeld = 0, firstHeld = 0;
+    let baseline = 0, latest = '';
+    document.addEventListener('pointerdown', () => {
+      held = true; currentHold = 0; baseline = order;
+    }, true);
+    const end = () => {
+      if (held && currentHold > 0) { if (first) firstHeld = currentHold; first = false; }
+      held = false;
+    };
+    document.addEventListener('pointerup', end, true);
+    document.addEventListener('pointercancel', end, true);
+    setInterval(() => {
+      for (const v of voices) {
+        if (!v.clip || v.clip === 'ready') continue;
+        const t = v.element.currentTime;
+        if (held && (v.started > baseline || v === movement && activeBed)) {
+          currentHold = Math.max(currentHold, t);
+          bestHeld = Math.max(bestHeld, currentHold);
+        }
+        if (t > .002 && (!v.element.ended || latest === '')) latest = v.clip + ' ' + t.toFixed(2);
+      }
+      hud.textContent = ['Sound bench | ' + (muted ? 'MUTED' : 'ON') + ' | ' + (navigator.audioSession?.type || 'system'),
+        'Starts ' + starts + ' | last ' + latest,
+        'In first hold ' + firstHeld.toFixed(2) + 's | any ' + bestHeld.toFixed(2) + 's',
+        ...voices.filter(v => v.clip && v.clip !== 'ready').map(v =>
+          v.clip + ' ' + v.element.currentTime.toFixed(2) + ' ' + (v.element.ended ? 'ended' : v.element.paused ? 'paused' : 'playing')),
+        lastError].filter(Boolean).join('\n');
+    }, 50);
+  }
 })();
